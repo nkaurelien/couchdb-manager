@@ -16,6 +16,10 @@ from urllib.parse import urlparse
 import time
 from typing import List, Dict, Optional, Tuple
 import pandas as pd
+from dotenv import load_dotenv
+
+# Load environment variables from .env file
+load_dotenv()
 
 # Configuration - Base directory is the application directory
 BASE_DIR = Path(__file__).parent.resolve()
@@ -733,9 +737,9 @@ def list_backups() -> List[Dict]:
 
 # Initialize session state
 if 'source_url' not in st.session_state:
-    st.session_state.source_url = ""
+    st.session_state.source_url = os.getenv("SOURCE_COUCHDB_URL", "")
 if 'target_url' not in st.session_state:
-    st.session_state.target_url = ""
+    st.session_state.target_url = os.getenv("TARGET_COUCHDB_URL", "")
 
 # Header
 st.title("🗄️ CouchDB Manager")
@@ -775,9 +779,9 @@ with st.sidebar:
     if env_file and st.button(f"📄 Load from {env_file.name}"):
         with open(env_file) as f:
             for line in f:
-                if line.startswith("COUCHDB_URL="):
+                if line.startswith("SOURCE_COUCHDB_URL="):
                     st.session_state.source_url = line.split("=", 1)[1].strip()
-                elif line.startswith("REMOTE_COUCHDB_URL="):
+                elif line.startswith("TARGET_COUCHDB_URL="):
                     st.session_state.target_url = line.split("=", 1)[1].strip()
         # Clear cache when loading new URLs
         st.session_state.source_dbs_cache = []
