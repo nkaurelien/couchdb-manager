@@ -1,0 +1,95 @@
+name: CI
+
+# Pull requests and pushes: lint, Trivy scans of the repository and of the image (built, never pushed here).
+on:
+  pull_request:
+  push:
+    branches: [main]
+  schedule:
+    - cron: "0 6 * * 1" # weekly re-scan: new CVEs appear without code changes
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: astral-sh/ruff-action@v4
+        with:
+          args: check --select E9,F63,F7,F82 . # syntax errors and undefined names only
+      - name: Compile
+        run: python3 -m py_compile couchdb_manager.py manage/*.py
+
+  trivy-repo:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write # SARIF upload (Security tab)
+    steps:
+      - uses: actions/checkout@v7
+      - name: Trivy — dependencies, secrets, Dockerfile / compose misconfigurations
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scanners: vuln,secret,misconfig
+          format: sarif
+          output: trivy-repo.sarif
+          severity: CRITICAL,HIGH,MEDIUM
+      - uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trivy-repo.sarif
+          category: trivy-repo
+      - name: Trivy — fail on secrets and CRITICAL fixable vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          scan-type: fs
+          scanners: vuln,secret
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          skip-setup-trivy: true
+
+  trivy-image:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      security-events: write
+    steps:
+      - uses: actions/checkout@v7
+      - uses: docker/setup-buildx-action@v4
+      - name: Build (not pushed)
+        uses: docker/build-push-action@v7
+        with:
+          context: .
+          load: true
+          tags: couchdb-manager:ci
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+      - name: Trivy — image report
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: couchdb-manager:ci
+          format: sarif
+          output: trivy-image.sarif
+          severity: CRITICAL,HIGH,MEDIUM
+      - uses: github/codeql-action/upload-sarif@v4
+        if: always()
+        with:
+          sarif_file: trivy-image.sarif
+          category: trivy-image
+      - name: Trivy — fail on CRITICAL fixable vulnerabilities
+        uses: aquasecurity/trivy-action@v0.36.0
+        with:
+          image-ref: couchdb-manager:ci
+          severity: CRITICAL
+          ignore-unfixed: true
+          exit-code: "1"
+          skip-setup-trivy: true

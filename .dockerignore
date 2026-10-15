@@ -1,0 +1,14 @@
+# Never in the build context: credentials, backups (database dumps), git metadata
+.env
+.env.*
+!.env.example
+backups/
+backup_*/
+*.backup
+*.bak
+.git/
+.github/
+__pycache__/
+*.py[cod]
+.venv/
+venv/

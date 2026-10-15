@@ -5,7 +5,7 @@ FROM python:3.11-slim
 WORKDIR /app
 
 # Install system dependencies
-RUN apt-get update && apt-get install -y \
+RUN apt-get update && apt-get install -y --no-install-recommends \
     curl \
     jq \
     && rm -rf /var/lib/apt/lists/*
@@ -14,17 +14,19 @@ RUN apt-get update && apt-get install -y \
 COPY requirements.txt .
 
 # Install Python dependencies
-RUN pip install --no-cache-dir -r requirements.txt
+# Install, then drop the packaging tools (not needed at runtime; their vendored libraries carry CVEs)
+RUN pip install --no-cache-dir -r requirements.txt \
+    && pip uninstall -y setuptools wheel pip
 
 # Copy application files
 COPY couchdb_manager.py .
 COPY manage/ ./manage/
 
-# Create backups directory
-RUN mkdir -p backups
-
-# Make shell script executable
-RUN chmod +x manage/backup_restore_couchdb.sh
+# Make shell script executable, run as a non-root user owning the backups directory
+RUN chmod +x manage/backup_restore_couchdb.sh \
+    && useradd --uid 1000 --create-home --shell /usr/sbin/nologin app \
+    && mkdir -p backups && chown app:app backups
+USER app
 
 # Expose Streamlit default port
 EXPOSE 8501

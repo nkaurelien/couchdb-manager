@@ -50,6 +50,21 @@ TARGET_COUCHDB_USER=admin
 TARGET_COUCHDB_PASSWORD=password
 ```
 
+### Docker image
+
+Published on GitHub Container Registry by the `Release image` workflow (amd64 + arm64): `main` → `:main`,
+tag `vX.Y.Z` → `:X.Y.Z`, `:X.Y`, `:latest`. Each image is scanned with Trivy (blocked on CRITICAL fixable
+vulnerabilities), runs as a non-root user, and is signed with cosign (keyless) with SBOM and provenance.
+
+```bash
+docker run -d --name couchdb-manager -p 127.0.0.1:8501:8501 --env-file .env \
+  -v "$PWD/backups:/app/backups" ghcr.io/nkaurelien/couchdb-manager:latest
+
+cosign verify ghcr.io/nkaurelien/couchdb-manager:latest \
+  --certificate-identity-regexp 'https://github.com/nkaurelien/couchdb-manager/.github/workflows/release.yml@.*' \
+  --certificate-oidc-issuer https://token.actions.githubusercontent.com
+```
+
 ## Usage
 
 ### Starting the Application
