@@ -5,7 +5,7 @@ services:
     build: .
     container_name: couchdb-manager
     ports:
-      - "8501:8501"
+      - "127.0.0.1:8501:8501"   # no built-in authentication: keep it local or behind an authenticating proxy
     volumes:
       - ./backups:/app/backups
       - ./.env:/app/.env:ro

@@ -5,6 +5,7 @@ A comprehensive Streamlit-based GUI application for managing CouchDB databases w
 ## Features
 
 - **🔄 Synchronization**: Sync databases between source and target CouchDB instances
+- **🧬 Native replication**: Copy databases with CouchDB's own `_replicate` (all revisions, attachments, design docs, `_security`), verified document by document; re-runs only copy the difference
 - **💾 Backup**: Create local backups of CouchDB databases with full attachment support
 - **♻️ Restore**: Restore databases from backup files (supports both old and new backup formats)
 - **🗑️ Delete**: Safely delete databases with multiple confirmation steps
@@ -124,6 +125,37 @@ Safely delete databases with multiple confirmations:
 4. Final confirmation required
 5. Irreversible operation - use with caution!
 
+### Native Replication Tab
+
+Copy databases from the source to the target with CouchDB's native replication — the recommended way to
+migrate or catch up a database:
+1. Connect both source and target in the sidebar
+2. Choose all databases or a selection (system databases such as `_users` are skipped)
+3. Set **Source as seen by the target** when the target CouchDB reaches the source through another address
+   (e.g. `http://172.17.0.1:5984` from a container to a CouchDB running on the host)
+4. Start: for each database the target is created, `_security` is copied, `_replicate` runs, then every
+   document is compared (winning revision and attachment digests)
+5. **Verify only** compares without copying. A source that is still written to shows mismatches until the
+   writers are stopped and a last catch-up run is done.
+
+The data goes from CouchDB to CouchDB: it never transits through the Manager.
+
+## Command-line Replication
+
+The same logic is available without the UI (`manage/replicate.py`, Python standard library only). Run it
+where both CouchDB are reachable; passwords are read from stdin (source, then target):
+
+```bash
+printf '%s\n%s\n' "$SRC_PASS" "$TGT_PASS" | python3 manage/replicate.py \
+  --source http://127.0.0.1:5984 --source-user admin \
+  --source-from-target http://172.17.0.1:5984 \
+  --target http://127.0.0.1:15984 --target-user admin \
+  [--db <name>]... [--verify-only] [--no-attachments-check]
+```
+
+Exit code 0 only when every database matches. Databases are processed one by one; for a large catch-up,
+run several databases in parallel (`xargs -P 8 ... --db {}`).
+
 ## Advanced Features
 
 ### Attachment Handling
@@ -202,6 +234,10 @@ backups/
 - Use HTTPS for remote CouchDB connections
 - Implement network-level security for CouchDB access
 - Regular backup verification
+- The Manager has **no authentication of its own** and can delete databases: never expose it directly. The
+  provided `docker-compose.yml` publishes it on `127.0.0.1` only; put it behind an authenticating proxy
+  (e.g. Cloudflare Access, basic auth) if it must be reachable remotely
+- Connection URLs are masked in the UI but contain credentials: anyone using the Manager can use them
 
 ## Requirements
 
@@ -209,6 +245,7 @@ backups/
 - streamlit >= 1.40.0
 - requests >= 2.31.0
 - python-dotenv >= 1.0.0
+- pandas >= 2.0.0
 
 ## Contributing
 
@@ -223,6 +260,13 @@ MIT License - See LICENSE file for details
 For issues, questions, or contributions, please contact the maintainer or open an issue on GitHub.
 
 ## Changelog
+
+### Version 1.1.0 (2026-10-15)
+- Native replication tab and `manage/replicate.py` CLI (revisions, attachments, design docs, `_security`,
+  per-document verification, incremental re-runs)
+- Database sizes read from `sizes.active` (CouchDB 2.1+ no longer returns `data_size`)
+- Connection URLs masked in the UI; Python backup / restore improvements
+- `docker-compose.yml` publishes the UI on `127.0.0.1` only
 
 ### Version 1.0.0 (2024-09-03)
 - Initial release with full backup/restore/sync/delete capabilities
