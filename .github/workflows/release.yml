@@ -82,7 +82,7 @@ jobs:
           provenance: mode=max
           cache-from: type=gha
 
-      - uses: sigstore/cosign-installer@v4
+      - uses: sigstore/cosign-installer@v4.1.2
       - name: Sign (keyless, GitHub OIDC)
         run: cosign sign --yes "${IMAGE}@${DIGEST}"
         env:
